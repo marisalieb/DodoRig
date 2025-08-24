@@ -1,158 +1,93 @@
-# as described in the README.md file, orient the joints before running this script
-# to do this:
-# in the viewport RMB click on the first joint in the hierachry (the arm joint here) 
-# and click 'select hierarchy', then go to Rigging menu -> Skeleton -> Orient joints
-# this correctly orients all but the end joints
-
-
-
-# now copy and paste this scipt into the script editor in Maya
 import maya.cmds as cmds
-
-# orient end joints
-def orientJoint(targetJoint, currentJoint):
-    orientedJoint = cmds.aimConstraint(targetJoint, currentJoint, aimVector=[-1, 0, 0], upVector=[0, 1, 0])
-    cmds.delete(orientedJoint)
-
-
-def orientEndJoints():
-    orientJoint('little_joint_04_BIND', 'little_joint_05_END')
-    orientJoint('ring_joint_04_BIND', 'ring_joint_05_END')
-    orientJoint('middle_joint_04_BIND', 'middle_joint_05_END')
-    orientJoint('index_joint_04_BIND', 'index_joint_05_END')
-    orientJoint('thumb_joint_03_BIND', 'thumb_joint_04_END')
-    
-
-# delete the orient wrist joint, as it is not needed anymore
-def deleteJoint(joint):
-    cmds.delete(joint)
+import json
+import os
+import platform
+import sys
 
 
-# freeze all transforms on all joints
+# Function to adjust joint radius
+def adjustJointRadius(radius):
+    joints = cmds.ls(type='joint')
+    for joint in joints:
+        cmds.setAttr(f"{joint}.radius", radius)
+
 def freezeTransforms():
-    allJoints = cmds.ls('*_joint_*')
+    allJoints = cmds.ls('*_JNT_*')
+    # print(allJoints)
     for joint in allJoints:
         cmds.makeIdentity(joint, apply=True, t=True, r=True, s=True)
 
+def freezeOffsetGroups():
+    cmds.select(cl=True)
+    offsetGroups = cmds.ls('*_OFFSET', type='transform')
+    if offsetGroups:
+        for group in offsetGroups:
+            cmds.makeIdentity(group, apply=True, t=True, r=True, s=True)
+        else:
+            print("No offset groups found")
+
+def lockToCentre():
+    cmds.select(cl=True)
+    cmds.select('*C_*_JNT_*')
+    selectedJoints = cmds.ls(sl=True)
+    for joint in selectedJoints:
+        cmds.setAttr(joint + '.tx', lock = True, keyable =True, channelBox = True)
+
+def unlockCentre():
+    cmds.select(cl=True)
+    cmds.select('*C_*_JNT_*')
+    selectedJoints = cmds.ls(sl=True)
+    for joint in selectedJoints:
+        cmds.setAttr(joint + '.tx', lock = False, keyable =True, channelBox = True)
 
 
-# controls:
-
-# align control to the joint
-def alignControl(control, joint):
-    # temporarily parent the control to the joint
-    cmds.parent(control, joint) 
-    cmds.setAttr(control + '.tx', 0)
-    cmds.setAttr(control + '.ty', 0)
-    cmds.setAttr(control + '.tz', 0)
-    cmds.setAttr(control + '.rx', 0)
-    cmds.setAttr(control + '.ry', 0)
-    cmds.setAttr(control + '.rz', 0)
-    # unparent the control
-    cmds.parent(control, w=True)
-
-# create each control with a circle and then group it so the control itself can stay zeroed out
-def createControl(controlName, direction, radius, joint):
-    name = controlName + '_ctrl'
-    cmds.circle(n=name, nr = direction, r=radius)
-    # nr is which way the circle is build
-    # without direction the circle is build at a differnt angle
-
-    cmds.group(n = name +'_group')
-    alignControl(name +'_group', joint)
-
-    # set the color of the control
-    shapeNode = cmds.listRelatives(name)
-    shapeNode = shapeNode[0]
-    cmds.setAttr(shapeNode + '.overrideEnabled', 1)
-    cmds.setAttr(shapeNode + '.overrideColor', 4)
-    # 4 results in red control circles
+def selectBind():
     cmds.select(cl=True)
 
-# create each control with the function above
-def createAllControls():
-    createControl('arm', [1, 0, 0], 6, 'arm_joint_01_BIND')
-    createControl('wrist', [1, 0, 0], 4, 'wrist_joint_01_BIND')
+    # Select bind and end joints
+    bindJNTS = cmds.ls('*_JNT_BIND*')
+    endJNTS = cmds.ls('*_JNT_END*')
+    selected_joints = bindJNTS + endJNTS
 
-    createControl('thumb_start', [1, 0, 0], 3, 'thumb_joint_01_BIND')
-    createControl('thumb_mid', [1, 0, 0], 3, 'thumb_joint_02_BIND')
-    createControl('thumb_end', [1, 0, 0], 1.7, 'thumb_joint_03_BIND')
+    # Find joints that should be excluded
+    exclude_keywords = ["feather", "Orient", "orient", "tongue", "eye_", "eyeEnd", "Root"] # "squint", "sneer", 
+    exclude_joints = cmds.ls([f'*{word}*' for word in exclude_keywords])  # Find all joints with these words
 
-    createControl('index_start', [1, 0, 0], 2.7, 'index_joint_02_BIND')
-    createControl('index_mid', [1, 0, 0], 1.6, 'index_joint_03_BIND')
-    createControl('index_end', [1, 0, 0], 1.2, 'index_joint_04_BIND')
+    # Remove excluded joints from selection
+    filtered_joints = list(set(selected_joints) - set(exclude_joints))
 
-    createControl('middle_start', [1, 0, 0], 2.7, 'middle_joint_02_BIND')
-    createControl('middle_mid', [1, 0, 0], 1.6, 'middle_joint_03_BIND')
-    createControl('middle_end', [1, 0, 0], 1.2, 'middle_joint_04_BIND')
-
-    createControl('ring_start', [1, 0, 0], 2.7, 'ring_joint_02_BIND')
-    createControl('ring_mid', [1, 0, 0], 1.6, 'ring_joint_03_BIND')
-    createControl('ring_end', [1, 0, 0], 1.2, 'ring_joint_04_BIND')
-
-    createControl('little_start', [1, 0, 0], 2.7, 'little_joint_02_BIND')
-    createControl('little_mid', [1, 0, 0], 1.6, 'little_joint_03_BIND')
-    createControl('little_end', [1, 0, 0], 1.2, 'little_joint_04_BIND')
+    # Select only the filtered joints
+    cmds.select(filtered_joints)
 
 
-# constrain controls to each joint
-def constrainControls():
-    # mo at the end of the line means maintain offset
-    cmds.parentConstraint('arm_ctrl', 'arm_joint_01_BIND', name = 'arm_CTRL_parentConstraint', mo=False)
-    cmds.orientConstraint('wrist_ctrl', 'wrist_joint_01_BIND', name = 'wrist_CTRL_orientConstraint', mo=False)
 
-    cmds.orientConstraint('thumb_start_ctrl', 'thumb_joint_01_BIND', name = 'thumb_start_CTRL_orientConstraint', mo=False)
-    cmds.orientConstraint('thumb_mid_ctrl', 'thumb_joint_02_BIND', name = 'thumb_mid_CTRL_orientConstraint', mo=False)
-    cmds.orientConstraint('thumb_end_ctrl', 'thumb_joint_03_BIND', name = 'thumb_end_CTRL_orientConstraint', mo=False)
+# create layers for the groups 
+def createLayers():
+    # Delete all existing display layers (except the default)
+    all_layers = cmds.ls(type="displayLayer")  # Get all display layers
+    for layer in all_layers:
+        if layer not in ["defaultLayer", "initialShadingGroup"]:  # Exclude default and system layers
+            cmds.delete(layer)
 
-    cmds.orientConstraint('index_start_ctrl', 'index_joint_02_BIND', name = 'index_start_CTRL_orientConstraint', mo=False)
-    cmds.orientConstraint('index_mid_ctrl', 'index_joint_03_BIND', name = 'index_mid_CTRL_orientConstraint', mo=False)
-    cmds.orientConstraint('index_end_ctrl', 'index_joint_04_BIND', name = 'index_end_CTRL_orientConstraint', mo=False)
+    print("Deleted all existing display layers.")
 
-    cmds.orientConstraint('middle_start_ctrl', 'middle_joint_02_BIND', name = 'middle_start_CTRL_orientConstraint', mo=False)
-    cmds.orientConstraint('middle_mid_ctrl', 'middle_joint_03_BIND', name = 'middle_mid_CTRL_orientConstraint', mo=False)
-    cmds.orientConstraint('middle_end_ctrl', 'middle_joint_04_BIND', name = 'middle_end_CTRL_orientConstraint', mo=False)
+    # Define the specific groups you want to create layers for
+    specific_groups = ["JOINTS", "CONTROLS", "C_COGFK_CTRL_ZERO", "L_hip_CTRL_ZERO", "R_hip_CTRL_ZERO"]  
 
-    cmds.orientConstraint('ring_start_ctrl', 'ring_joint_02_BIND', name = 'ring_start_CTRL_orientConstraint', mo=False)
-    cmds.orientConstraint('ring_mid_ctrl', 'ring_joint_03_BIND', name = 'ring_mid_CTRL_orientConstraint', mo=False)
-    cmds.orientConstraint('ring_end_ctrl', 'ring_joint_04_BIND', name = 'ring_end_CTRL_orientConstraint', mo=False)
-    
-    cmds.orientConstraint('little_start_ctrl', 'little_joint_02_BIND', name = 'little_start_CTRL_orientConstraint', mo=False)
-    cmds.orientConstraint('little_mid_ctrl', 'little_joint_03_BIND', name = 'little_mid_CTRL_orientConstraint', mo=False)
-    cmds.orientConstraint('little_end_ctrl', 'little_joint_04_BIND', name = 'little_end_CTRL_orientConstraint', mo=False)
+    # Create new display layers
+    for grp in specific_groups:
+        if cmds.objExists(grp):  # Ensure the group exists in the scene
+            layer_name = f"{grp}_layer"  # Name the layer after the group
 
+            # Create a new display layer
+            cmds.createDisplayLayer(name=layer_name, empty=True)
+            
+            # Add the group to the layer
+            cmds.editDisplayLayerMembers(layer_name, grp, noRecurse=True)
 
-# parent the controls
-def parentControls():
-    cmds.parent('wrist_ctrl_group', 'arm_ctrl')
+            # Set different properties for each layer
+            cmds.setAttr(f"{layer_name}.visibility", 1)  # Visible
+            cmds.setAttr(f"{layer_name}.playback", 1)  # Visible during playback
+            cmds.setAttr(f"{layer_name}.displayType", 0)  # Normal (Selectable)
 
-    cmds.parent('thumb_start_ctrl_group', 'wrist_ctrl')
-    cmds.parent('thumb_mid_ctrl_group', 'thumb_start_ctrl')
-    cmds.parent('thumb_end_ctrl_group', 'thumb_mid_ctrl')
-
-    cmds.parent('index_start_ctrl_group', 'wrist_ctrl')
-    cmds.parent('index_mid_ctrl_group', 'index_start_ctrl')
-    cmds.parent('index_end_ctrl_group', 'index_mid_ctrl')
-
-    cmds.parent('middle_start_ctrl_group', 'wrist_ctrl')
-    cmds.parent('middle_mid_ctrl_group', 'middle_start_ctrl')
-    cmds.parent('middle_end_ctrl_group', 'middle_mid_ctrl')
-
-    cmds.parent('ring_start_ctrl_group', 'wrist_ctrl')
-    cmds.parent('ring_mid_ctrl_group', 'ring_start_ctrl')
-    cmds.parent('ring_end_ctrl_group', 'ring_mid_ctrl')
-
-    cmds.parent('little_start_ctrl_group', 'wrist_ctrl')
-    cmds.parent('little_mid_ctrl_group', 'little_start_ctrl')
-    cmds.parent('little_end_ctrl_group', 'little_mid_ctrl')
-
-
-# run the functions
-cmds.select(cl=True)
-orientEndJoints()
-deleteJoint('wristorient_joint_01_BIND')
-freezeTransforms()
-createAllControls()
-constrainControls()
-parentControls()
-  
+    print(f"Recreated layers for: {specific_groups}")
