@@ -9,7 +9,7 @@ import sys
 # Get the current working directory (where the script is run)
 script_dir = os.getcwd()
 
-JOINTS_FILE = os.path.join(script_dir, "joint-positions-13.json")
+JOINTS_FILE = os.path.join(script_dir, "joint-positions.json")
 
 print(JOINTS_FILE)
 
