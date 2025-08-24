@@ -4,7 +4,7 @@ import os
 import platform
 import sys
 import importlib
-
+ 
 
 def ensureAttributeExists(ctrl, attr_name, min_val=None, max_val=None):
     if not cmds.attributeQuery(attr_name, node=ctrl, exists=True):
